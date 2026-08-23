@@ -19,6 +19,19 @@ class OrderService
             $order = new Order();
             $order->save();
 
+            $products = Product::with('ingredients.ingredient')
+                ->whereIn('id', collect($data['items'])->pluck('product_id'))
+                ->get()
+                ->keyBy('id');
+
+            $ingredientIds = $products
+                ->flatMap(fn($product) => $product->ingredients->pluck('ingredient_id'))
+                ->unique();
+
+            $stocks = Stock::whereIn('product_id', $ingredientIds)
+                ->get()
+                ->keyBy('product_id');
+
             foreach ($data['items'] as $item) {
 
                 $orderItem = new OrderItem();
@@ -27,20 +40,16 @@ class OrderService
                 $orderItem->quantity = $item['quantity'];
                 $orderItem->save();
 
-                $product = Product::find($item['product_id']);
+                $product = $products[$item['product_id']];
 
                 foreach ($product->ingredients as $ingredient) {
 
-                    $stock = Stock::where(
-                        'product_id',
-                        $ingredient->ingredient_id
-                    )->first();
+                    $stock = $stocks[$ingredient->ingredient_id];
 
                     $requiredQuantity =
                         $ingredient->quantity * $item['quantity'];
 
-                    $ingredientProduct =
-                        Product::find($ingredient->ingredient_id);
+                    $ingredientProduct = $ingredient->ingredient;
 
                     if ($stock->quantity < $requiredQuantity) {
                         throw new \Exception(
@@ -48,8 +57,7 @@ class OrderService
                         );
                     }
 
-                    $stock->quantity -= $requiredQuantity;
-                    $stock->save();
+                    $stock->decrement('quantity', $requiredQuantity);
 
                     if (
                         $stock->quantity <= ($stock->initial_quantity * 0.5)
