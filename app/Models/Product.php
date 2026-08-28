@@ -14,5 +14,18 @@ public function stockTransfers()
 {
     return $this->hasMany(StockTransfer::class);
 }
+public function ingredients()
+{
+    return $this->hasMany(ProductIngredient::class);
+}
+
+public function usedAsIngredient()
+{
+    return $this->hasMany(ProductIngredient::class, 'ingredient_id');
+}
+public function orderItems()
+{
+    return $this->hasMany(OrderItem::class);
+}
 
 }
